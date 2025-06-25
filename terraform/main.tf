@@ -1,4 +1,4 @@
-# Terraform configuration for Care Connect on Google Cloud Run
+# Terraform configuration for Care Connect on GCP
 # Client: blue cross home care ltd
 
 terraform {
@@ -6,7 +6,7 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 4.0"
+      version = "~> 5.0"
     }
   }
 }
@@ -16,24 +16,26 @@ provider "google" {
   region  = var.region
 }
 
-# Cloud SQL instance
+# Cloud SQL Database Instance
 resource "google_sql_database_instance" "main" {
-  name             = "${var.project_id}-db"
+  name             = "careconnect-${var.client_name}-db"
   database_version = "POSTGRES_15"
   region           = var.region
   deletion_protection = false
 
   settings {
-    tier = "db-f1-micro"
+    tier = "db-f1-micro"  # Free tier
     
     backup_configuration {
       enabled = true
       start_time = "03:00"
     }
     
-    maintenance_window {
-      day  = 7
-      hour = 4
+    ip_configuration {
+      authorized_networks {
+        name  = "allow-all"
+        value = "0.0.0.0/0"
+      }
     }
   }
 }
@@ -51,78 +53,104 @@ resource "google_sql_user" "user" {
   password = var.db_password
 }
 
-# Secrets
-resource "google_secret_manager_secret" "db_password" {
-  secret_id = "db-password"
-  
-  replication {
-    automatic = true
-  }
-}
-
-resource "google_secret_manager_secret_version" "db_password" {
-  secret      = google_secret_manager_secret.db_password.id
-  secret_data = var.db_password
-}
-
-# Cloud Run service
-resource "google_cloud_run_service" "main" {
-  name     = "care-connect"
+# Frontend Cloud Run Service
+resource "google_cloud_run_v2_service" "frontend" {
+  name     = "careconnect-${var.client_name}-frontend"
   location = var.region
 
   template {
-    spec {
-      containers {
-        image = "gcr.io/${var.project_id}/care-connect:latest"
-        
-        ports {
-          container_port = 3000
-        }
-        
-        env {
-          name  = "NODE_ENV"
-          value = "production"
-        }
-        
-        env {
-          name  = "INSTANCE_ID"
-          value = var.instance_id
-        }
-        
-        resources {
-          limits = {
-            cpu    = "1"
-            memory = "512Mi"
-          }
+    containers {
+      image = var.frontend_image
+      
+      ports {
+        container_port = 80
+      }
+      
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
         }
       }
+    }
+    
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 5  # Within GCP quota limits
     }
   }
 
   traffic {
-    percent         = 100
-    latest_revision = true
+    percent = 100
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
   }
 }
 
-# IAM policy for public access
-resource "google_cloud_run_service_iam_member" "public" {
-  service  = google_cloud_run_service.main.name
-  location = google_cloud_run_service.main.location
+# Backend Cloud Run Service
+resource "google_cloud_run_v2_service" "backend" {
+  name     = "careconnect-${var.client_name}-backend"
+  location = var.region
+
+  template {
+    containers {
+      image = var.backend_image
+      
+      ports {
+        container_port = 5000
+      }
+      
+      env {
+        name  = "NODE_ENV"
+        value = "production"
+      }
+      
+      env {
+        name  = "DATABASE_URL"
+        value = "postgresql://${google_sql_user.user.name}:${var.db_password}@${google_sql_database_instance.main.private_ip_address}/${google_sql_database.database.name}"
+      }
+      
+      env {
+        name  = "JWT_SECRET"
+        value = var.jwt_secret
+      }
+      
+      env {
+        name  = "LICENSE_KEY"
+        value = var.license_key
+      }
+      
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+      }
+    }
+    
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 5  # Within GCP quota limits
+    }
+  }
+
+  traffic {
+    percent = 100
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+  }
+}
+
+# IAM policy for public access to frontend
+resource "google_cloud_run_service_iam_member" "frontend_public" {
+  service  = google_cloud_run_v2_service.frontend.name
+  location = google_cloud_run_v2_service.frontend.location
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
 
-# Custom domain mapping
-resource "google_cloud_run_domain_mapping" "main" {
-  location = var.region
-  name     = var.domain_name
-
-  metadata {
-    namespace = var.project_id
-  }
-
-  spec {
-    route_name = google_cloud_run_service.main.name
-  }
+# IAM policy for public access to backend
+resource "google_cloud_run_service_iam_member" "backend_public" {
+  service  = google_cloud_run_v2_service.backend.name
+  location = google_cloud_run_v2_service.backend.location
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }

@@ -1,48 +1,75 @@
-# Cloud Build configuration for Care Connect
-# This file builds the Docker container and deploys to Cloud Run
+# Google Cloud Build configuration for Care Connect
+# Client: blue cross home care ltd
+# GCP quota-compliant multi-container architecture
 
 steps:
-  # Build the container image
+  # Build frontend image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/care-connect:$COMMIT_SHA', '.']
-  
-  # Push the container image to Container Registry
+    args: ['build', '-f', 'frontend/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-frontend:$SHORT_SHA', '.']
+    
+  # Build backend image  
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/care-connect:$COMMIT_SHA']
-  
-  # Deploy container image to Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
+    args: ['build', '-f', 'backend/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-backend:$SHORT_SHA', '.']
+    
+  # Push frontend image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-frontend:$SHORT_SHA']
+    
+  # Push backend image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-backend:$SHORT_SHA']
+    
+  # Terraform init
+  - name: 'hashicorp/terraform'
+    entrypoint: 'sh'
     args:
-    - 'run'
-    - 'deploy'
-    - 'care-connect'
-    - '--image'
-    - 'gcr.io/$PROJECT_ID/care-connect:$COMMIT_SHA'
-    - '--region'
-    - 'us-central1'
-    - '--platform'
-    - 'managed'
-    - '--allow-unauthenticated'
-    - '--port'
-    - '3000'
-    - '--memory'
-    - '512Mi'
-    - '--cpu'
-    - '1'
-    - '--concurrency'
-    - '80'
-    - '--max-instances'
-    - '10'
+      - '-c'
+      - |
+        cd terraform
+        terraform init
+        
+  # Terraform plan
+  - name: 'hashicorp/terraform'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform plan \
+          -var="project_id=$PROJECT_ID" \
+          -var="client_name=bluecrosshomecareltd" \
+          -var="frontend_image=gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-frontend:$SHORT_SHA" \
+          -var="backend_image=gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-backend:$SHORT_SHA" \
+          -var="db_password=${_DB_PASSWORD}" \
+          -var="jwt_secret=${_JWT_SECRET}" \
+          -var="license_key=${_LICENSE_KEY}"
+        
+  # Terraform apply
+  - name: 'hashicorp/terraform'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        cd terraform
+        terraform apply -auto-approve \
+          -var="project_id=$PROJECT_ID" \
+          -var="client_name=bluecrosshomecareltd" \
+          -var="frontend_image=gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-frontend:$SHORT_SHA" \
+          -var="backend_image=gcr.io/$PROJECT_ID/careconnect-bluecrosshomecareltd-backend:$SHORT_SHA" \
+          -var="db_password=${_DB_PASSWORD}" \
+          -var="jwt_secret=${_JWT_SECRET}" \
+          -var="license_key=${_LICENSE_KEY}"
 
-# Store images in Google Container Registry
-images:
-  - 'gcr.io/$PROJECT_ID/care-connect:$COMMIT_SHA'
-
-# Build configuration
+# Build options
 options:
-  logging: CLOUD_LOGGING_ONLY
   machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  
+# Substitutions
+substitutions:
+  _DB_PASSWORD: '.p173bn2a9ui'
+  _JWT_SECRET: '0.75bi85jrq1t'
+  _LICENSE_KEY: '8e30afee-7c07-424d-8a59-6e735eaaaf77'
 
-# Timeout for the entire build
-timeout: '1200s'
+# Build timeout
+timeout: '1800s'

@@ -1,150 +1,77 @@
-# Google Cloud Run Deployment - blue cross home care ltd
+# Care Connect GCP Cloud Build Deployment
 
-## One-Click Deployment for Care Connect
+## Client: blue cross home care ltd
 
-This package contains everything needed to deploy your Care Connect instance to Google Cloud Run with a single command.
+This package contains a complete GCP Cloud Build deployment for Care Connect using multi-container architecture.
 
-### 🚀 Quick Start
+### Architecture
 
-1. **Extract the deployment package**
+- **Frontend**: React app served by NGINX (gcr.io/PROJECT_ID/careconnect-bluecrosshomecareltd-frontend)
+- **Backend**: Express.js API server (gcr.io/PROJECT_ID/careconnect-bluecrosshomecareltd-backend)  
+- **Database**: Cloud SQL PostgreSQL instance
+- **Infrastructure**: Terraform-managed Cloud Run services
+
+### Quick Start
+
+1. **Prerequisites**
    ```bash
-   unzip bluecrosshomecare-cloudrun-deployment.zip
-   cd bluecrosshomecare-careconnect-cloudrun-deployment
+   # Enable required APIs
+   gcloud services enable cloudbuild.googleapis.com
+   gcloud services enable run.googleapis.com
+   gcloud services enable sql-component.googleapis.com
    ```
 
-2. **Run the setup script** (first time only)
+2. **Deploy Application**
    ```bash
-   chmod +x setup-environment.sh
-   ./setup-environment.sh
-   ```
-
-3. **Deploy your application**
-   ```bash
-   chmod +x deploy.sh
-   ./deploy.sh
-   ```
-
-4. **Access your application**
-   - Main Application: https://bluecrosshomecareltd
-   - Admin Portal: https://bluecrosshomecareltd/admin
-   - Care Portal: https://bluecrosshomecareltd/care
-   - ACT Portal: https://bluecrosshomecareltd/act
-
-### 📋 Prerequisites
-
-- Google Cloud Account with billing enabled
-- Domain control for `bluecrosshomecareltd`
-- Local machine with internet connection
-
-### 🏗️ What Gets Deployed
-
-- **Cloud Run Service** - Serverless container hosting
-- **Cloud SQL Database** - Managed PostgreSQL database
-- **Secret Manager** - Secure credential storage
-- **Custom Domain** - SSL certificate and DNS configuration
-- **Monitoring** - Health checks and logging
-
-### 💰 Cost Estimation
-
-- **Free Tier**: $0/month (first 300$ credit)
-- **After Free Tier**: ~$7-15/month
-  - Cloud Run: $0-5/month (scales to zero)
-  - Cloud SQL: $7-10/month (f1-micro)
-
-### 🔧 Manual Configuration (if needed)
-
-If you prefer manual setup or encounter issues:
-
-1. **Create Google Cloud Project**
-   ```bash
-   gcloud projects create bluecrosshomecare-careconnect --name="blue cross home care ltd Care Connect"
-   gcloud config set project bluecrosshomecare-careconnect
-   ```
-
-2. **Enable APIs**
-   ```bash
-   gcloud services enable run.googleapis.com sql-component.googleapis.com cloudbuild.googleapis.com
-   ```
-
-3. **Deploy with Cloud Build**
-   ```bash
+   # Submit to Cloud Build
    gcloud builds submit --config cloudbuild.yaml
    ```
 
-### 📊 Instance Details
+### File Structure
+```
+├── frontend/
+│   ├── Dockerfile          # React build → NGINX
+│   └── .dockerignore
+├── nginx/
+│   ├── Dockerfile          # NGINX reverse proxy
+│   └── conf.d/default.conf # SPA routing config
+├── backend/
+│   └── Dockerfile          # Express API server
+├── terraform/
+│   ├── main.tf             # Cloud Run + SQL
+│   ├── variables.tf
+│   └── outputs.tf
+├── cloudbuild.yaml         # Build pipeline
+├── .gcloudignore
+└── README.md
+```
+
+### GCP Quota Compliance
+
+- Max instances: 5 per service (within 10 limit)
+- Memory: 512Mi per instance (within 40GB region limit)  
+- CPU: 1 vCPU per instance (within 20,000m limit)
+- Scales to zero when not in use
+
+### Client Information
 
 - **Organization**: blue cross home care ltd
 - **Domain**: bluecrosshomecareltd
-- **Project ID**: bluecrosshomecare-careconnect
-- **Instance ID**: 74b6fc3f-9c07-4e23-b2a5-f8c0fa7191ee
 - **License Key**: 8e30afee-7c07-424d-8a59-6e735eaaaf77
-- **Database**: PostgreSQL on Cloud SQL
-- **Scaling**: 0-10 instances (auto)
-
-### 🛠️ Maintenance Commands
-
-```bash
-# View application logs
-gcloud run services logs tail care-connect --region us-central1
-
-# Scale service
-gcloud run services update care-connect --max-instances 20 --region us-central1
-
-# Update application
-gcloud builds submit --tag gcr.io/bluecrosshomecare-careconnect/care-connect
-gcloud run services update care-connect --image gcr.io/bluecrosshomecare-careconnect/care-connect --region us-central1
-
-# Backup database
-gcloud sql export sql bluecrosshomecare-careconnect-db gs://bluecrosshomecare-careconnect-backups/backup-$(date +%Y%m%d).sql --database=careconnect
-
-# Monitor resources
-gcloud run services describe care-connect --region us-central1
-gcloud sql instances describe bluecrosshomecare-careconnect-db
-```
-
-### 🔒 Security Features
-
-- Non-root container execution
-- Secret Manager for sensitive data
-- Cloud SQL with private networking
-- Automatic SSL certificates
-- IAM-based access control
-
-### 📞 Support
-
-- **Technical Support**: support@careconnect.com
-- **License Issues**: Include License Key: 8e30afee-7c07-424d-8a59-6e735eaaaf77
 - **Instance ID**: 74b6fc3f-9c07-4e23-b2a5-f8c0fa7191ee
-- **Google Cloud Console**: https://console.cloud.google.com/run?project=bluecrosshomecare-careconnect
 
-### 🔄 Troubleshooting
+### GitHub Integration
 
-**Billing Issues**
-```bash
-# Check billing status
-gcloud beta billing accounts list
-gcloud beta billing projects link bluecrosshomecare-careconnect --billing-account=BILLING_ACCOUNT_ID
-```
+This package is ready for GitHub-triggered Cloud Build:
 
-**Domain Issues**
-```bash
-# Check domain mapping
-gcloud run domain-mappings describe --domain bluecrosshomecareltd --region us-central1
+1. Upload to GitHub repository
+2. Connect Cloud Build trigger to repository
+3. Trigger on push to main branch
+4. Automatic deployment to Cloud Run
 
-# View DNS requirements
-gcloud dns managed-zones describe bluecrosshomecareltd-zone
-```
+### Support
 
-**Application Issues**
-```bash
-# Check service status
-gcloud run services describe care-connect --region us-central1
+Frontend URL: Available after deployment in Terraform outputs
+Backend URL: Available after deployment in Terraform outputs
 
-# View recent logs
-gcloud run services logs read care-connect --region us-central1 --limit 50
-```
-
----
-
-**Deployed by Care Connect Super Admin**  
-**Package generated**: $(date)
+For support: support@careconnect.com

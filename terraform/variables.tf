@@ -1,9 +1,6 @@
-# Terraform variables for blue cross home care ltd
-
 variable "project_id" {
   description = "The GCP project ID"
   type        = string
-  default     = "bluecrosshomecare-careconnect"
 }
 
 variable "region" {
@@ -12,21 +9,35 @@ variable "region" {
   default     = "us-central1"
 }
 
-variable "domain_name" {
-  description = "The custom domain name"
+variable "client_name" {
+  description = "Client name for resource naming"
   type        = string
-  default     = "bluecrosshomecareltd"
 }
 
-variable "instance_id" {
-  description = "The Care Connect instance ID"
+variable "frontend_image" {
+  description = "Frontend container image"
   type        = string
-  default     = "74b6fc3f-9c07-4e23-b2a5-f8c0fa7191ee"
+}
+
+variable "backend_image" {
+  description = "Backend container image"
+  type        = string
 }
 
 variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
-  default     = ".4ah5l16at0a"
+}
+
+variable "jwt_secret" {
+  description = "JWT secret key"
+  type        = string
+  sensitive   = true
+}
+
+variable "license_key" {
+  description = "Care Connect license key"
+  type        = string
+  sensitive   = true
 }

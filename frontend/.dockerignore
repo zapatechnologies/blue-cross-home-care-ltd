@@ -1,0 +1,16 @@
+node_modules
+.git
+.gitignore
+.dockerignore
+Dockerfile
+.env*
+*.log
+npm-debug.log*
+.nyc_output
+coverage
+.vscode
+.DS_Store
+server
+terraform
+nginx
+*.md
