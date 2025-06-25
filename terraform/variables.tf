@@ -28,5 +28,5 @@ variable "db_password" {
   description = "Database password"
   type        = string
   sensitive   = true
-  default     = ".lxu7v8621hb"
+  default     = ".4ah5l16at0a"
 }
